@@ -15,5 +15,5 @@ evaluation/test_filelists/lr*.txt
 *.webm
 *.mp3
 *.jpeg
-data/
-.ipynb_checkpoints/
+data
+.ipynb_checkpoints
