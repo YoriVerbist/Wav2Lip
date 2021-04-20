@@ -50,6 +50,9 @@ parser.add_argument('--rotate', default=False, action='store_true',
 parser.add_argument('--nosmooth', default=False, action='store_true',
 					help='Prevent smoothing face detections over a short temporal window')
 
+parser.add_argument('--amount_people', default=1, type=int,
+                    help="The number of people that are in the picture/video, if it's a video the person needs to be in every frame")
+
 args = parser.parse_args()
 args.img_size = 96
 
@@ -83,6 +86,9 @@ def face_detect(images):
 			print('Recovering from OOM error; New batch size: {}'.format(batch_size))
 			continue
 		break
+
+	if args.amount_people != 1:
+		predictions = predictions[0]
 
 	results = []
 	pady1, pady2, padx1, padx2 = args.pads
