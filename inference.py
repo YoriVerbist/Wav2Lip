@@ -87,8 +87,9 @@ def face_detect(images):
 			continue
 		break
 
-	if args.amount_people != 1:
-		predictions = predictions[0]
+	if args.amount_people == 1:
+		face = predictions[1]
+		predictions = [face]
 
 	results = []
 	pady1, pady2, padx1, padx2 = args.pads
@@ -259,6 +260,7 @@ def main():
 			print ("Model loaded")
 
 			frame_h, frame_w = full_frames[0].shape[:-1]
+			print('here')
 			out = cv2.VideoWriter('temp/result.avi', 
 									cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
 
