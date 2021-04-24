@@ -42,23 +42,25 @@ def detect_faces(image):
     
     batch_size = 16
     while 1:
-		predictions = []
-		try:
-			for i in tqdm(range(0, len(images), batch_size)):
-				predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size])))
-		except RuntimeError:
-			if batch_size == 1:
-				raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
-			batch_size //= 2
-			print('Recovering from OOM error; New batch size: {}'.format(batch_size))
-			continue
-		break
+        predictions = []
+        try:
+            for i in tqdm(range(0, len(images), batch_size)):
+                predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size])))
+        except RuntimeError:
+            if batch_size == 1:
+                raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
+            batch_size //= 2
+            print('Recovering from OOM error; New batch size: {}'.format(batch_size))
+            continue
+        break
     print(predictions)
+    return predictions
 
 
 @app.route('/')
 def home():
     return render_template("index.html")
+
 
 @app.route('/animate', methods=['POST'])
 def animate():
@@ -71,20 +73,26 @@ def animate():
  
     if img_file and allowed_video_file(img_file.filename):
         #TODO just run the main script since it's just a video
-        return 0
+        filename = secure_filename(img_file.filename)
+        img_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return {'success': img_file.filename}, 200
 
 
     if img_file and allowed_image_file(img_file.filename): 
         filename = secure_filename(img_file.filename)
-        file.save(os.path.joing(app.config['UPLOAD_FOLDER'], filename))
-        img = PILImage.create(file)
-        print(img)
+        img_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        #img = PILImage.create(file)
         # if you want a json reply, together with class probabilities:
         #return jsonify(str(pred))
         # or if you just want the result
-        return {'success': img}, 200
+        return {'success': img_file.filename}, 200
 
     return {'error': 'something went wrong.'}, 500
+
+
+@app.route('/select_image', methods=['POST'])
+def select_image():
+    return render_template("animated.html")
 
 if __name__ == '__main__':
     port = os.getenv('PORT',5000)

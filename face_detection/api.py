@@ -75,7 +75,6 @@ class FaceAlignment:
                 x1, y1, x2, y2 = map(int, face[:-1])
                 results.append((x1, y1, x2, y2))
             
-            print(results)
             #x1, y1, x2, y2 = map(int, d[:-1])
             #results.append((x1, y1, x2, y2))
 

@@ -66,10 +66,6 @@ def batch_detect(net, imgs, device):
     BB, CC, HH, WW = imgs.size()
     with torch.no_grad():
         olist = net(imgs)
-        print(imgs)
-        print('here')
-        print(len(imgs), len(olist[1][0]))
-        print(olist[1][0].size())
 
     bboxlist = []
     for i in range(len(olist) // 2):

@@ -87,7 +87,7 @@ def face_detect(images):
 			continue
 		break
 
-	if args.amount_people == 1:
+	if len(predictions) > 1:
 		face = predictions[1]
 		predictions = [face]
 
