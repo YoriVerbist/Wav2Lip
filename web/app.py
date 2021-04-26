@@ -5,7 +5,8 @@ import sys
 
 from flask import Flask, request, make_response, jsonify, render_template
 from werkzeug.utils import secure_filename
-import tqdm
+import tqdm, torch, cv2
+import numpy as np
 
 # Import face_detection library
 sys.path.append("../")
@@ -27,6 +28,8 @@ ALLOWED_VOICE_EXTENSIONS = {'wav'}
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 def allowed_image_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
@@ -40,20 +43,13 @@ def detect_faces(image):
     detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, 
                                             flip_input=False, device=device)
     
-    batch_size = 16
+    predictions = []
     while 1:
-        predictions = []
         try:
-            for i in tqdm(range(0, len(images), batch_size)):
-                predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size])))
-        except RuntimeError:
-            if batch_size == 1:
-                raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
-            batch_size //= 2
-            print('Recovering from OOM error; New batch size: {}'.format(batch_size))
-            continue
-        break
-    print(predictions)
+            predictions.extend(detector.get_detections_for_batch(np.array(image)))
+            break
+        except:
+            pass
     return predictions
 
 
@@ -62,8 +58,8 @@ def home():
     return render_template("index.html")
 
 
-@app.route('/animate', methods=['POST'])
-def animate():
+@app.route('/predict', methods=['POST'])
+def predict():
     if 'image' not in request.files:
         return {'error': 'no image found, in request.'}, 400
 
@@ -81,17 +77,21 @@ def animate():
     if img_file and allowed_image_file(img_file.filename): 
         filename = secure_filename(img_file.filename)
         img_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        #img = PILImage.create(file)
-        # if you want a json reply, together with class probabilities:
-        #return jsonify(str(pred))
-        # or if you just want the result
-        return {'success': img_file.filename}, 200
+
+        image = [cv2.imread(f"static/uploads/{filename}")]
+        print(np.array(image).shape)
+
+        preds = detect_faces(image.copy())
+        print(preds)
+
+
+        return render_template("predict.html", preds = preds, filename = 'uploads/' + filename)
 
     return {'error': 'something went wrong.'}, 500
 
-
 @app.route('/select_image', methods=['POST'])
 def select_image():
+    print(request.form['face'])
     return render_template("animated.html")
 
 if __name__ == '__main__':
