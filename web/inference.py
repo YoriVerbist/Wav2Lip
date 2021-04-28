@@ -87,6 +87,10 @@ def face_detect(images):
 			continue
 		break
 
+	if len(predictions) > 1:
+		face = predictions[1]
+		predictions = [face]
+
 	results = []
 	pady1, pady2, padx1, padx2 = args.pads
 	for rect, image in zip(predictions, images):

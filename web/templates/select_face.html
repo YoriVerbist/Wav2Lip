@@ -1,10 +1,10 @@
 {% extends "layout.html" %} {% block main %}
-<form action="/select_image" action="POST">
+<form action="/select_face" method="POST" enctype="multipart/form-data">
   <div class="row">
     {%for pred in preds%}
     <div class="col-md-3">
       <div class="custom-control custom-radio image-checkbox">
-        <input type="radio" class="custom-control-input" id="{{loop.index - 1}}" name="face" value="{{loop.index - 1}}" />
+        <input type="radio" class="custom-control-input" id="{{loop.index - 1}}" name="faces" value="{{loop.index - 1}}" />
         <label class="custom-control-label" for="{{loop.index - 1}}">
           <img src="{{ url_for('static', filename=filename) }}" alt="#" style="width:{{pred[2]-pred[0]}}px; height:{{pred[3]-pred[1]+10}}px; object-fit:none; object-position:-{{pred[0]}}px -{{pred[1]}}px" />
         </label>
