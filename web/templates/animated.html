@@ -1,5 +1,5 @@
 {% extends "layout.html" %} {% block main %}
 <div class="row">
-      <embed src="{{ url_for('static', filename='results/result_voice.mp4') }}" allowfullscreen="true" width="600" height="800"></embed>
+      <embed src="{{ url_for('static', filename=filename) }}" allowfullscreen="true" width="600" height="800"></embed>
     </div>
 {% endblock %}
