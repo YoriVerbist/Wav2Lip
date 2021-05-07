@@ -1,5 +1,6 @@
 from os import listdir, path
 import numpy as np
+import pandas as pd
 import scipy, cv2, os, sys, argparse, audio
 import json, subprocess, random, string
 from tqdm import tqdm
@@ -53,11 +54,19 @@ parser.add_argument('--nosmooth', default=False, action='store_true',
 parser.add_argument('--person', default=0, type=int,
                     help="The index of the person which you want to animate the mouth of")
 
+parser.add_argument('--static_video', type=int, 
+                    help='If True, then use only first video frame for inference', default=0)
+
+parser.add_argument('--cache', type=str, 
+                    help='Filepath of csv where face detections are cached')
+
 args = parser.parse_args()
 args.img_size = 96
 
 if os.path.isfile(args.face) and args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
     args.static = True
+args.static_video = bool(args.static_video)
+print(args.static_video)
 
 def get_smoothened_boxes(boxes, T):
     for i in range(len(boxes)):
@@ -69,27 +78,43 @@ def get_smoothened_boxes(boxes, T):
     return boxes
 
 def face_detect(images, video):
-    detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, 
-                                            flip_input=False, device=device)
+    if not args.cache:
+        detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, 
+                                                flip_input=False, device=device)
 
-    batch_size = args.face_det_batch_size
-    
-    while 1:
-        predictions = []
-        try:
-            for i in tqdm(range(0, len(images), batch_size)):
-                predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size]), video))
-        except RuntimeError:
-            if batch_size == 1: 
-                raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
-            batch_size //= 2
-            print('Recovering from OOM error; New batch size: {}'.format(batch_size))
-            continue
-        break
+        batch_size = args.face_det_batch_size
+        
+        while 1:
+            predictions = []
+            try:
+                for i in tqdm(range(0, len(images), batch_size)):
+                    predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size]), video))
+            except RuntimeError:
+                if batch_size == 1: 
+                    raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
+                batch_size //= 2
+                print('Recovering from OOM error; New batch size: {}'.format(batch_size))
+                continue
+            del detector
+            break
+    else:
+        df = pd.read_csv(args.cache)
+        preds = df.values.tolist()
+        if len(preds) == 1:
+            predictions = [[eval(pred) for pred in preds[0]]]
+        elif len(preds) > 1:
+            predictions = [[eval(pred)] for batch in preds for pred in batch]
 
-    if args.static:
-        face = predictions[args.person]
+    print('static_video:', args.static_video)
+    if args.static or args.static_video:
+        face = predictions[0][args.person]
         predictions = [face]
+    else:
+        tmp = []
+        for pred in predictions:
+            face = pred[0]
+            tmp.append(face)
+        predictions = tmp
 
     results = []
     pady1, pady2, padx1, padx2 = args.pads
@@ -109,14 +134,13 @@ def face_detect(images, video):
     if not args.nosmooth: boxes = get_smoothened_boxes(boxes, T=5)
     results = [[image[y1: y2, x1:x2], (y1, y2, x1, x2)] for image, (x1, y1, x2, y2) in zip(images, boxes)]
 
-    del detector
     return results 
 
 def datagen(frames, mels):
     img_batch, mel_batch, frame_batch, coords_batch = [], [], [], []
 
     if args.box[0] == -1:
-        if not args.static:
+        if not args.static and not args.static_video:
             face_det_results = face_detect(frames, True) # BGR2RGB for CNN face detection
         else:
             face_det_results = face_detect([frames[0]], False)
@@ -128,7 +152,10 @@ def datagen(frames, mels):
     for i, m in enumerate(mels):
         idx = 0 if args.static else i%len(frames)
         frame_to_save = frames[idx].copy()
-        face, coords = face_det_results[idx].copy()
+        if args.static_video:
+            face, coords = face_det_results[0].copy()
+        else:
+            face, coords = face_det_results[idx].copy()
 
         face = cv2.resize(face, (args.img_size, args.img_size))
             
@@ -230,7 +257,6 @@ def main():
 
     wav = audio.load_wav(args.audio, 16000)
     mel = audio.melspectrogram(wav)
-    print(mel.shape)
 
     if np.isnan(mel.reshape(-1)).sum() > 0:
         raise ValueError('Mel contains nan! Using a TTS voice? Add a small epsilon noise to the wav file and try again')

@@ -25,8 +25,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 global image_path
 global audio_path
+global cache_file
 
-command = 'python3 ../inference.py --checkpoint_path ../checkpoints/wav2lip_gan.pth --face {} --audio {} --outfile {} --person {} --static_video {}'
+command = 'python3 ../inference.py --checkpoint_path ../checkpoints/wav2lip_gan.pth --face {} --audio {} \
+                                   --outfile {} --person {} --static_video {} --cache {}'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -64,17 +66,17 @@ def detect_faces_batch(images):
     
     batch_size = 32
     while 1:
-	    predictions = []
-	    try:
-	        for i in tqdm(range(0, len(images), batch_size)):
-	    	    predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size])))
-	    except RuntimeError:
-	        if batch_size == 1: 
-	    	    raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
-	        batch_size //= 2
-	        print('Recovering from OOM error; New batch size: {}'.format(batch_size))
-	        continue
-	    break
+        predictions = []
+        try:
+            for i in range(0, len(images), batch_size):
+        	    predictions.extend(detector.get_detections_for_batch(np.array(images[i:i + batch_size]), True))
+        except RuntimeError:
+            if batch_size == 1: 
+        	    raise RuntimeError('Image too big to run face detection on GPU. Please use the --resize_factor argument')
+            batch_size //= 2
+            print('Recovering from OOM error; New batch size: {}'.format(batch_size))
+            continue
+        break
     del detector
     return predictions
 
@@ -93,7 +95,7 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    global image_path, audio_path
+    global image_path, audio_path, cache_file
 
     if 'image' not in request.files or 'audio' not in request.files:
         return {'error': 'no image or audio found, in request.'}, 400
@@ -118,10 +120,6 @@ def predict():
 
     cache_file = f"static/cache/{image_filename.split('.')[0] + '.csv'}"
 
-    # if filename_exists(filename):
-    #     print('removed')
-    #     os.remove(filename)
-
     # If the face detections are already cached, just use those instead of detecting them again
     if filename_exists(cache_file):
         #TODO if the cache file exists, just get the detections from there
@@ -130,8 +128,13 @@ def predict():
         if len(preds) == 1:
             preds = [[eval(pred) for pred in preds[0]]]
         elif len(preds) > 1:
-            #TODO convert every string tuple to a tuple
-            preds = [eval(pred) for x in frame for pred in preds]
+            tmp = []
+            for batch in preds:
+                new_batch = []
+                for pred in batch:
+                    new_batch.append(eval(pred))
+                tmp.append(new_batch)
+            preds = tmp
             pass
         elif len(preds[0]) < 1:
             return {'error': 'No faces found in the picture/video'}, 400
@@ -148,7 +151,7 @@ def predict():
 
         # Get the face detections of the whole video
         if img_file and allowed_video_file(img_file.filename) and not request.form.get('static_video'):
-            video_stream = cv2.VideoCapture(img_file)
+            video_stream = cv2.VideoCapture(f"static/uploads/{img_file.filename}")
             full_frames = []
             while 1:
                 still_reading, frame = video_stream.read()
@@ -158,6 +161,7 @@ def predict():
 
                 full_frames.append(frame)
             preds = detect_faces_batch(full_frames.copy())
+            print(preds)
         
         # Get the face detections of the image
         if img_file and allowed_image_file(img_file.filename):
@@ -168,23 +172,26 @@ def predict():
         print(f"Saved the predictions to {cache_file}")
         df.to_csv(cache_file, index=False)
 
+    print(request.form.get('static_video'))
+    print('preds:', preds)
     # If it's not a static video, just run the script on the video
     if img_file and allowed_video_file(img_file.filename) and not request.form.get('static_video'):
-        os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, False))
+        print('non static video')
+        os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, 0, cache_file))
         return render_template("animated.html", filename = filename.strip('static/'))
 
     # If it's a static video, select the correct face first
     if img_file and allowed_video_file(img_file.filename) and request.form.get('static_video'):
-
         if len(preds[0]) == 1:
-            os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, True))
+            print('static video')
+            os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, 1, cache_file))
             return render_template("animated.html", filename = filename.strip('static/'))
 
         return render_template("select_face.html", preds = preds[0], filename = 'uploads/' + image_filename.split('.')[0] + '.jpg')
     
     # If only one face is detected run the script without selecting the correct face
     if img_file and allowed_image_file(img_file.filename) and len(preds[0]) == 1:
-        os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, True))
+        os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, 1, cache_file))
         return render_template("animated.html", filename = filename.strip('static/'))
 
     # If it's a image with multiple faces, select the correct face first
@@ -196,7 +203,7 @@ def predict():
 
 @app.route('/select_face', methods=['POST'])
 def select_face():
-    global image_path, audio_path
+    global image_path, audio_path, cache_file
 
     filename = image_path.split('/')[-1].split('.')[0]
     filename = 'static/results/' + filename + '.mp4'
@@ -204,7 +211,7 @@ def select_face():
 
     face = int(request.form['faces'])
 
-    os.system(command.format(image_path, audio_path, '{}'.format(filename), face, True))
+    os.system(command.format(image_path, audio_path, '{}'.format(filename), face, 1, cache_file))
     return render_template("animated.html", filename = filename.strip('static/'))
 
 
