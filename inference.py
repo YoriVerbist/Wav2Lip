@@ -66,7 +66,6 @@ args.img_size = 96
 if os.path.isfile(args.face) and args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
     args.static = True
 args.static_video = bool(args.static_video)
-print(args.static_video)
 
 def get_smoothened_boxes(boxes, T):
     for i in range(len(boxes)):
@@ -105,7 +104,6 @@ def face_detect(images, video):
         elif len(preds) > 1:
             predictions = [[eval(pred)] for batch in preds for pred in batch]
 
-    print('static_video:', args.static_video)
     if args.static or args.static_video:
         face = predictions[0][args.person]
         predictions = [face]

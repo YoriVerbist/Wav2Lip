@@ -5,6 +5,7 @@ import sys
 
 from flask import Flask, request, make_response, jsonify, render_template
 from werkzeug.utils import secure_filename
+from pydub import AudioSegment
 import tqdm, torch, cv2, ast, pathlib
 import numpy as np
 import pandas as pd
@@ -18,7 +19,7 @@ UPLOAD_FOLDER = "static/uploads"
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg'} 
 ALLOWED_VIDEO_EXTENSIONS = {'mp4'} 
-ALLOWED_AUDIO_EXTENSIONS = {'wav'} 
+ALLOWED_AUDIO_EXTENSIONS = {'wav', 'mp4', 'mp3'} 
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -26,6 +27,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 global image_path
 global audio_path
 global cache_file
+global multiple_audio
 
 command = 'python3 ../inference.py --checkpoint_path ../checkpoints/wav2lip_gan.pth --face {} --audio {} \
                                    --outfile {} --person {} --static_video {} --cache {}'
@@ -95,7 +97,7 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    global image_path, audio_path, cache_file
+    global image_path, audio_path, cache_file, multiple_audio
 
     if 'image' not in request.files or 'audio' not in request.files:
         return {'error': 'no image or audio found, in request.'}, 400
@@ -119,6 +121,8 @@ def predict():
     filename = 'static/results/' + filename + '.mp4'
 
     cache_file = f"static/cache/{image_filename.split('.')[0] + '.csv'}"
+
+    multiple_audio = request.form.get('multiple_audio')
 
     # If the face detections are already cached, just use those instead of detecting them again
     if filename_exists(cache_file):
@@ -161,7 +165,6 @@ def predict():
 
                 full_frames.append(frame)
             preds = detect_faces_batch(full_frames.copy())
-            print(preds)
         
         # Get the face detections of the image
         if img_file and allowed_image_file(img_file.filename):
@@ -172,18 +175,15 @@ def predict():
         print(f"Saved the predictions to {cache_file}")
         df.to_csv(cache_file, index=False)
 
-    print(request.form.get('static_video'))
     print('preds:', preds)
     # If it's not a static video, just run the script on the video
     if img_file and allowed_video_file(img_file.filename) and not request.form.get('static_video'):
-        print('non static video')
         os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, 0, cache_file))
         return render_template("animated.html", filename = filename.strip('static/'))
 
     # If it's a static video, select the correct face first
     if img_file and allowed_video_file(img_file.filename) and request.form.get('static_video'):
         if len(preds[0]) == 1:
-            print('static video')
             os.system(command.format(image_path, audio_path, '{}'.format(filename), 0, 1, cache_file))
             return render_template("animated.html", filename = filename.strip('static/'))
 
@@ -203,11 +203,16 @@ def predict():
 
 @app.route('/select_face', methods=['POST'])
 def select_face():
-    global image_path, audio_path, cache_file
+    global image_path, audio_path, cache_file, multiple_audio
 
     filename = image_path.split('/')[-1].split('.')[0]
     filename = 'static/results/' + filename + '.mp4'
     print(filename)
+    if multiple_audio:
+        sound1 = AudioSegment.from_file(audio_path, format="wav")
+        sound2 = AudioSegment.from_file(image_path, format="mp4")
+        overlay = sound1.overlay(sound2, position=0)
+        file_handle = overlay.export(audio_path, format="mp4")
 
     face = int(request.form['faces'])
 
