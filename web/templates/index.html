@@ -1,30 +1,50 @@
 {% extends "layout.html" %} {% block main %}
-<h1>Mouth Animation</h1>
-<hr />
-<p>Here you can animate your pictures.</p>
-<form action="/predict" method="post" enctype="multipart/form-data">
-  <div class="input-group mb-3">
-    <label class="input-group-text" for="image">Image</label>
-    <input type="file" class="form-control" id="image" name="image" required />
-  </div>
-  <div class="input-group mb-3">
-    <label class="input-group-text" for="audio">Audio file</label>
-    <input type="file" class="form-control" id="audio" name="audio" required />
-  </div>
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="static_video" id="static_video">
-    <label class="form-check-label" for="static_video">
-      Static video
-    </label>
-  </div>
-  <div class="form-check">
-    <input class="form-check-input" type="checkbox" name="multiple_audio" id="multiple_audio">
-    <label class="form-check-label" for="multiple_audio">
-      Overlay the two audio samples
-    </label>
+<div id="card">
+  <h1>Mouth Animation</h1>
+  <hr />
+  <p>Here you can animate your pictures.</p>
+  <form action="/predict" method="post" enctype="multipart/form-data" id="form">
+    <div class="input-group mb-3">
+      <label class="input-group-text" for="image">Image</label>
+      <input type="file" class="form-control" id="image" name="image" required />
+    </div>
+    <div class="input-group mb-3">
+      <label class="input-group-text" for="audio">Audio file</label>
+      <input type="file" class="form-control" id="audio" name="audio" required />
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="static_video" id="static_video">
+      <label class="form-check-label" for="static_video">
+        Static video
+      </label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="multiple_audio" id="multiple_audio">
+      <label class="form-check-label" for="multiple_audio">
+        Overlay the two audio samples
+      </label>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Animate</button>
+    </form>
+</div>
+
+
+  <div id="loading" class="row justify-content-center" style="display:none">
+    <svg class="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
+    <circle class="path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle>
+    </svg>
   </div>
 
-  <button class="btn btn-primary" type="submit">Animate</button>
-  </form>
 
+{% endblock %}
+
+{% block javascript %}
+<script type="javascript">
+    $("#form").on("submit", function(){
+      console.log('here');
+      $("#loading").fadeIn();
+      $("#card").fadeOut();
+  });//submit
+</script>
 {% endblock %}
